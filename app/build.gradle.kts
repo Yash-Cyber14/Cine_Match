@@ -30,7 +30,15 @@ android {
         if (localPropertiesFile.exists()) {
             localPropertiesFile.inputStream().use { properties.load(it) }
         }
-        buildConfigField("String", "TMDB_API_KEY", "\"${properties.getProperty("tmdb.api.key")}\"")
+
+        val apiKey = properties.getProperty("apikey")
+            ?: throw GradleException("apikey missing in local.properties")
+        val openRouterKey = properties.getProperty("openrouterai_api_key")
+            ?: throw GradleException("openrouterai_api_key missing in local.properties")
+
+        buildConfigField("String", "apikey", "\"$apiKey\"")
+        buildConfigField("String", "openrouterai_api_key", "\"$openRouterKey\"")
+
     }
 
     buildFeatures {

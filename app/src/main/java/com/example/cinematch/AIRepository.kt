@@ -1,5 +1,6 @@
 package com.example.cinematch
 
+import androidx.media3.ui.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
@@ -16,7 +17,7 @@ class AIRepository(private val apiService: OpenRouterService) {
             messages = messages
         )
         val response = apiService.createChat(
-            auth = "Bearer ${Constants.openrouterai_api_key}",
+            auth = "Bearer ${com.example.cinematch.BuildConfig.openrouterai_api_key}",
             request = request
         )
         response.choices.firstOrNull()?.message
