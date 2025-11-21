@@ -1,9 +1,10 @@
 package com.example.cinematch
 
+
+
 import android.content.Context
-import androidx.compose.runtime.mutableStateOf
-import android.util.Log
 import android.widget.Toast
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.State
 import androidx.lifecycle.ViewModel
 import com.google.firebase.auth.FirebaseAuth
@@ -13,6 +14,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.tasks.await
+import android.util.Log
 
 data class SignUp(
     val loading: Boolean = false,
@@ -54,178 +56,187 @@ class AuthenticationViewModel : ViewModel() {
     val signOutState: State<SignOutState> = _signOutState
 
 
+    // -------------------------------------------------------------------------
+    // SIGNUP
+    // -------------------------------------------------------------------------
     suspend fun signUpWithEmailAndPassword(email: String, password: String) {
+        val cleanEmail = email.trim().lowercase()
+
         _signupState.value = _signupState.value.copy(loading = true, confirm = false)
 
         try {
-            // 🔹 1️⃣ Create Firebase Auth user
-            instance.createUserWithEmailAndPassword(email, password).await()
+            instance.createUserWithEmailAndPassword(cleanEmail, password).await()
             val user = instance.currentUser ?: throw Exception("User creation failed")
 
-            // 🔹 2️⃣ Create a Firestore document if not exists (with all required fields)
-            val userRef = firestore.collection("users").document(user.uid)
-            val snapshot = userRef.get().await()
+            val data = mapOf(
+                "email" to cleanEmail,
+                "username" to cleanEmail.substringBefore("@"),
+                "profileImage" to "",
+                "friends" to emptyList<String>(),
+                "favouriteMovies" to emptyList<Map<String, Any>>(),
+                "bio" to "Hey there! I'm a movie fan."
+            )
 
-            if (!snapshot.exists()) {
-                val data = mapOf(
-                    "email" to user.email,
-                    "username" to (user.displayName ?: email.substringBefore("@")),
-                    "profileImage" to "",
-                    "friends" to emptyList<String>(),
-                    "favouriteMovies" to emptyList<Map<String, Any>>(), // 🟢 fixed structure
-                    "bio" to "Hey there! I'm a movie fan.",
-                    "joined" to FieldValue.serverTimestamp()
-                )
+            firestore.collection("users").document(user.uid)
+                .set(data, SetOptions.merge()).await()
 
-                userRef.set(data, SetOptions.merge()).await()
-                Log.d("AuthVM", "✅ Firestore user document created for ${user.email}")
-            } else {
-                Log.d("AuthVM", "ℹ️ User document already exists for ${user.email}")
-            }
-
-            // 🔹 3️⃣ Update UI state
-            _signupState.value = _signupState.value.copy(loading = false, confirm = true)
+            _signupState.value = SignUp(loading = false, confirm = true)
 
         } catch (e: Exception) {
-            _signupState.value = _signupState.value.copy(
-                loading = false,
-                confirm = false,
-                errorMessage = e.message
-            )
-            Log.e("AuthVM", "❌ Sign up failed", e)
+            _signupState.value = SignUp(loading = false, confirm = false, errorMessage = e.message)
         }
     }
 
 
 
+    // -------------------------------------------------------------------------
+    // SIGNIN
+    // -------------------------------------------------------------------------
     suspend fun signInWithEmailAndPassword(email: String, password: String) {
-        _signinState.value = _signinState.value.copy(loading = true, confirm = false)
+        _signinState.value = SignIn(loading = true)
         try {
-            instance.signInWithEmailAndPassword(email, password).await()
-            _signinState.value = _signinState.value.copy(loading = false, confirm = true)
+            instance.signInWithEmailAndPassword(email.trim().lowercase(), password).await()
+            _signinState.value = SignIn(loading = false, confirm = true)
         } catch (e: Exception) {
-            _signinState.value = _signinState.value.copy(
-                loading = false,
-                confirm = false,
-                errorMessage = e.message
-            )
-            Log.e("AuthVM", "Sign in failed", e)
+            _signinState.value = SignIn(loading = false, confirm = false, errorMessage = e.message)
         }
     }
 
-    suspend fun savename(name : String , email: String){
+
+    // -------------------------------------------------------------------------
+    // SAVE NAME
+    // -------------------------------------------------------------------------
+    suspend fun savename(name: String, email: String) {
         try {
-            val users = instance.currentUser ?: throw Exception("User not there")
-
-            firestore.collection("users").document(users.uid)
-                .update("username",name)
-        }catch (e : Exception){
-
-        }
+            val user = instance.currentUser ?: return
+            firestore.collection("users").document(user.uid)
+                .update("username", name).await()
+        } catch (_: Exception) { }
     }
 
+
+    // -------------------------------------------------------------------------
+    // CHECK IF EMAIL EXISTS
+    // -------------------------------------------------------------------------
     suspend fun isEmailRegistered(email: String): Boolean {
         return try {
             val snapshot = firestore.collection("users")
-                .whereEqualTo("email", email)
-                .get()
-                .await()
+                .whereEqualTo("email", email.trim().lowercase())
+                .get().await()
 
-            !snapshot.isEmpty  //  true if email exists
+            !snapshot.isEmpty
         } catch (e: Exception) {
-            Log.e("AuthVM", "Error checking email: ${e.message}")
             false
         }
     }
 
 
-
+    // -------------------------------------------------------------------------
+    // SIGNOUT
+    // -------------------------------------------------------------------------
     fun signOut() {
         try {
             instance.signOut()
         } catch (e: Exception) {
-            _signOutState.value = _signOutState.value.copy(errorMessage = e.message)
+            _signOutState.value = SignOutState(errorMessage = e.message)
         }
     }
 
-    private var _foundfriend = mutableStateOf<UserModel?>(null)
-    val foundfriend : State<UserModel?> = _foundfriend
 
-//    private var _errorfindingfriend = mutableStateOf<String?>(null)
-//    val errorfindingfriend : State<String?> = _errorfindingfriend
-//
-//    private var _registeringfriend = mutableStateOf<String?>(null)
-//    val regesteringfriend : State<String?> = _registeringfriend
-
-
-
+    // -------------------------------------------------------------------------
+    // FIND FRIEND BY EMAIL
+    // -------------------------------------------------------------------------
+    private val _foundfriend = mutableStateOf<UserModel?>(null)
+    val foundfriend: State<UserModel?> = _foundfriend
 
     suspend fun findinguser(friendemail: String?, context: Context) {
-
         try {
-            val user = instance.currentUser ?: throw Exception("User not there")
-
             val snapshot = firestore.collection("users")
-                .whereEqualTo("email", friendemail)
-                .get()
-                .await()
+                .whereEqualTo("email", friendemail?.trim()?.lowercase())
+                .get().await()
 
-            if (!snapshot.isEmpty) {
-                val friend = snapshot.first().toObject(UserModel::class.java)
-                _foundfriend.value = friend
-            }else{
-                _foundfriend.value = null
-            }
-        }catch (e : Exception){
-            Toast.makeText(context , "FriendEmail Not Found" , Toast.LENGTH_SHORT).show()
+            _foundfriend.value =
+                if (!snapshot.isEmpty) snapshot.first().toObject(UserModel::class.java)
+                else null
 
-
-        }
-
-    }
-
-
-    suspend fun Makingfriend(friendemail: String, context: Context) {
-        try {
-            val user = instance.currentUser ?: throw Exception("User not there")
-
-            val snapshot = firestore.collection("users")
-                .whereEqualTo("email", friendemail)
-                .get()
-                .await()
-
-            if (!snapshot.isEmpty) {
-                val friend = snapshot.first().toObject(UserModel::class.java)
-                val friendId = snapshot.first().id
-
-                // Add friend to current user's list
-                firestore.collection("users").document(user.uid)
-                    .update("friends", FieldValue.arrayUnion(friendId))
-                    .await()
-
-                // Optionally, also add the current user to friend's list (bidirectional friendship)
-                firestore.collection("users").document(friendId)
-                    .update("friends", FieldValue.arrayUnion(user.uid))
-                    .await()
-
-                Log.d("AuthVM", "Friend added successfully: ${friend.email}")
-            } else {
-                Log.w("AuthVM", "No friend found with email: $friendemail")
-            }
         } catch (e: Exception) {
-            Log.e("AuthVM", "Error finding friend", e)
-            Toast.makeText(context , "${e.message}" , Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Friend not found", Toast.LENGTH_SHORT).show()
         }
     }
 
+
+
+    // -------------------------------------------------------------------------
+    // FIND FRIEND BY UID
+    // -------------------------------------------------------------------------
+    suspend fun findinguserByUid(uid: String?, context: Context) {
+        if (uid.isNullOrBlank()) return
+
+        try {
+            val snapshot = firestore.collection("users").document(uid).get().await()
+
+            _foundfriend.value =
+                if (snapshot.exists()) snapshot.toObject(UserModel::class.java)
+                else null
+
+        } catch (_: Exception) {
+            Toast.makeText(context, "Friend not found", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+
+    // -------------------------------------------------------------------------
+    // FIND UID BY EMAIL
+    // -------------------------------------------------------------------------
+    suspend fun findinguserByEmail(email: String, context: Context): String? {
+        return try {
+            val snapshot = firestore.collection("users")
+                .whereEqualTo("email", email.trim().lowercase())
+                .get().await()
+
+            if (!snapshot.isEmpty) snapshot.first().id else null
+
+        } catch (e: Exception) {
+            Toast.makeText(context, "Friend not found", Toast.LENGTH_SHORT).show()
+            null
+        }
+    }
+
+
+
+    // -------------------------------------------------------------------------
+    // ADD FRIEND
+    // -------------------------------------------------------------------------
+    suspend fun Makingfriend(friendUid: String, context: Context) {
+        try {
+            val user = instance.currentUser ?: return
+            val currentUid = user.uid
+
+            firestore.collection("users").document(currentUid)
+                .update("friends", FieldValue.arrayUnion(friendUid)).await()
+
+            firestore.collection("users").document(friendUid)
+                .update("friends", FieldValue.arrayUnion(currentUid)).await()
+
+        } catch (_: Exception) {
+            Toast.makeText(context, "Error adding friend", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+
+    // -------------------------------------------------------------------------
+    // LOAD FRIENDS
+    // -------------------------------------------------------------------------
     private val _friends = mutableStateOf<List<String>>(emptyList())
     val friends: State<List<String>> = _friends
 
     fun loadFriends() {
         val uid = instance.currentUser?.uid ?: return
+
         firestore.collection("users").document(uid).get()
-            .addOnSuccessListener { document ->
-                val friendIds = document.get("friends") as? List<String> ?: emptyList()
+            .addOnSuccessListener { doc ->
+                val friendIds = doc.get("friends") as? List<String> ?: emptyList()
+
                 if (friendIds.isEmpty()) {
                     _friends.value = emptyList()
                     return@addOnSuccessListener
@@ -235,79 +246,32 @@ class AuthenticationViewModel : ViewModel() {
                     .whereIn(FieldPath.documentId(), friendIds)
                     .get()
                     .addOnSuccessListener { snapshot ->
-                        val emails = snapshot.mapNotNull { it.getString("email") }
-                        _friends.value = emails
+                        _friends.value = snapshot.mapNotNull { it.getString("email") }
                     }
             }
     }
 
 
+
+    // -------------------------------------------------------------------------
+    // LOAD FAVOURITE MOVIES
+    // -------------------------------------------------------------------------
     private val _favouriteMovies = mutableStateOf<List<Movie>>(emptyList())
     val favouriteMovies: State<List<Movie>> = _favouriteMovies
 
-    private val _commonMovies = mutableStateOf<List<Movie>>(emptyList())
-    val commonMovies: State<List<Movie>> = _commonMovies
-
-
-    // 🟢 Toggle Favourite Movie
-    fun toggleFavorite(movie: Movie) {
-        val user = instance.currentUser ?: return
-        val userRef = firestore.collection("users").document(user.uid)
-
-        firestore.runTransaction { transaction ->
-            val snapshot = transaction.get(userRef)
-            val favs = (snapshot.get("favouriteMovies") as? List<Map<String, Any>>)?.toMutableList() ?: mutableListOf()
-
-
-            // check if this movie already exists
-            val existingIndex = favs.indexOfFirst { it["id"] == movie.id }
-
-            if (existingIndex != -1) {
-                // 🗑️ Movie already exists → remove it
-                favs.removeAt(existingIndex)
-                transaction.update(userRef, "favouriteMovies", favs)
-            } else {
-                // ✅ Add full movie object
-                val movieMap = mapOf(
-                    "adult" to movie.adult,
-                    "backdrop_path" to movie.backdrop_path,
-                    "genre_ids" to movie.genre_ids,
-                    "id" to movie.id,
-                    "original_language" to movie.original_language,
-                    "original_title" to movie.original_title,
-                    "overview" to movie.overview,
-                    "popularity" to movie.popularity,
-                    "poster_path" to movie.poster_path,
-                    "release_date" to movie.release_date,
-                    "title" to movie.title,
-                    "video" to movie.video,
-                    "vote_average" to movie.vote_average,
-                    "vote_count" to movie.vote_count
-                )
-                favs.add(movieMap as Map<String, Any>)
-                transaction.update(userRef, "favouriteMovies", favs)
-            }
-        }.addOnSuccessListener {
-            Log.d("Firestore", "Toggled favorite for ${movie.title}")
-        }.addOnFailureListener {
-            Log.e("Firestore", "Failed to toggle favorite", it)
-        }
-    }
-
-
-
-    // 🟢 Load User’s Favourite Movies
     fun loadFavourites() {
         val uid = instance.currentUser?.uid ?: return
+
         firestore.collection("users").document(uid).get()
             .addOnSuccessListener { doc ->
                 val list = doc["favouriteMovies"] as? List<Map<String, Any>> ?: emptyList()
-                val movies = list.map { map ->
+
+                _favouriteMovies.value = list.map { map ->
                     Movie(
                         adult = map["adult"] as? Boolean ?: false,
                         backdrop_path = map["backdrop_path"] as? String,
-                        genre_ids = (map["genre_ids"] as? List<Int>) ?: emptyList(),
-                        id = (map["id"] as? Long)?.toInt() ?: 0,
+                        genre_ids = map["genre_ids"] as? List<Int> ?: emptyList(),
+                        id = (map["id"] as? Number)?.toInt() ?: 0,
                         original_language = map["original_language"] as? String ?: "",
                         original_title = map["original_title"] as? String ?: "",
                         overview = map["overview"] as? String ?: "",
@@ -317,18 +281,78 @@ class AuthenticationViewModel : ViewModel() {
                         title = map["title"] as? String ?: "",
                         video = map["video"] as? Boolean ?: false,
                         vote_average = (map["vote_average"] as? Number)?.toDouble() ?: 0.0,
-                        vote_count = (map["vote_count"] as? Long)?.toInt() ?: 0
+                        vote_count = (map["vote_count"] as? Number)?.toInt() ?: 0
                     )
                 }
-                _favouriteMovies.value = movies
-            }
-            .addOnFailureListener {
-                _favouriteMovies.value = emptyList()
             }
     }
 
 
-    // 🟢 Load Common Movies with Friends
+
+    // -------------------------------------------------------------------------
+    // ⭐️⭐️ TOGGLE FAVOURITE MOVIE (ADD / REMOVE) ⭐️⭐️
+    // -------------------------------------------------------------------------
+    suspend fun toggleFavouriteMovie(movie: Movie, context: Context) {
+        val uid = instance.currentUser?.uid ?: return
+        val userRef = firestore.collection("users").document(uid)
+
+        try {
+            val snapshot = userRef.get().await()
+            val currentList = snapshot["favouriteMovies"] as? List<Map<String, Any>> ?: emptyList()
+
+            val movieId = movie.id
+            val exists = currentList.any { (it["id"] as? Number)?.toInt() == movieId }
+
+            if (exists) {
+                // remove
+                userRef.update(
+                    "favouriteMovies",
+                    FieldValue.arrayRemove(movie.toMap())
+                ).await()
+            } else {
+                // add
+                userRef.update(
+                    "favouriteMovies",
+                    FieldValue.arrayUnion(movie.toMap())
+                ).await()
+            }
+
+            loadFavourites()
+
+        } catch (e: Exception) {
+            Toast.makeText(context, "Error updating favourites", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+
+    // Convert movie object to Firestore map
+    private fun Movie.toMap(): Map<String, Any?> {
+        return mapOf(
+            "adult" to adult,
+            "backdrop_path" to backdrop_path,
+            "genre_ids" to genre_ids,
+            "id" to id,
+            "original_language" to original_language,
+            "original_title" to original_title,
+            "overview" to overview,
+            "popularity" to popularity,
+            "poster_path" to poster_path,
+            "release_date" to release_date,
+            "title" to title,
+            "video" to video,
+            "vote_average" to vote_average,
+            "vote_count" to vote_count
+        )
+    }
+
+
+
+    // -------------------------------------------------------------------------
+    // COMMON MOVIES
+    // -------------------------------------------------------------------------
+    private val _commonMovies = mutableStateOf<List<Movie>>(emptyList())
+    val commonMovies: State<List<Movie>> = _commonMovies
+
     fun loadCommonMoviesWithFriends() {
         val uid = instance.currentUser?.uid ?: return
         val usersRef = firestore.collection("users")
@@ -337,30 +361,27 @@ class AuthenticationViewModel : ViewModel() {
             val friends = doc.get("friends") as? List<String> ?: emptyList()
             val myFavs = doc.get("favouriteMovies") as? List<Map<String, Any>> ?: emptyList()
 
-            if (friends.isEmpty()) {
-                _commonMovies.value = emptyList()
-                return@addOnSuccessListener
-            }
+            if (friends.isEmpty()) return@addOnSuccessListener
 
-            usersRef.whereIn(FieldPath.documentId(), friends)
-                .get()
+            usersRef.whereIn(FieldPath.documentId(), friends).get()
                 .addOnSuccessListener { friendsDocs ->
                     val allFriendsFavs = friendsDocs.flatMap {
                         it.get("favouriteMovies") as? List<Map<String, Any>> ?: emptyList()
                     }
 
-                    val myMovieIds = myFavs.mapNotNull { (it["id"] as? Long)?.toInt() }
+                    val myMovieIds = myFavs.mapNotNull { (it["id"] as? Number)?.toInt() }
+
                     val common = allFriendsFavs.filter {
-                        val id = (it["id"] as? Long)?.toInt()
+                        val id = (it["id"] as? Number)?.toInt()
                         id != null && myMovieIds.contains(id)
                     }
 
-                    val movies = common.map { map ->
+                    _commonMovies.value = common.map { map ->
                         Movie(
                             adult = map["adult"] as? Boolean ?: false,
                             backdrop_path = map["backdrop_path"] as? String,
-                            genre_ids = (map["genre_ids"] as? List<Int>) ?: emptyList(),
-                            id = (map["id"] as? Long)?.toInt() ?: 0,
+                            genre_ids = map["genre_ids"] as? List<Int> ?: emptyList(),
+                            id = (map["id"] as? Number)?.toInt() ?: 0,
                             original_language = map["original_language"] as? String ?: "",
                             original_title = map["original_title"] as? String ?: "",
                             overview = map["overview"] as? String ?: "",
@@ -370,29 +391,30 @@ class AuthenticationViewModel : ViewModel() {
                             title = map["title"] as? String ?: "",
                             video = map["video"] as? Boolean ?: false,
                             vote_average = (map["vote_average"] as? Number)?.toDouble() ?: 0.0,
-                            vote_count = (map["vote_count"] as? Long)?.toInt() ?: 0
+                            vote_count = (map["vote_count"] as? Number)?.toInt() ?: 0
                         )
                     }
-                    _commonMovies.value = movies
-                    Log.d("Firestore", "Common movies: ${movies.size}")
                 }
         }
     }
 
-    private val _route = mutableStateOf<String>(Screens.GettingStarted.route)
+
+
+    // -------------------------------------------------------------------------
+    // SPLASH LOGIN CHECK
+    // -------------------------------------------------------------------------
+    private val _route = mutableStateOf(Screens.GettingStarted.route)
     val route: State<String> = _route
 
     suspend fun loggingin() {
-        delay(1900) // give Firebase 1 second to initialize
-        if (instance.currentUser != null) {
-            _route.value = Screens.Home.route
-        } else {
-            _route.value = Screens.GettingStarted.route
-        }
+        delay(1500)
+        _route.value =
+            if (instance.currentUser != null) Screens.Home.route
+            else Screens.GettingStarted.route
     }
-
-
 }
+
+
 
 
 

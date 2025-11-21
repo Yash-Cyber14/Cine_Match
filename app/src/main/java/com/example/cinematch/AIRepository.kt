@@ -1,8 +1,9 @@
 package com.example.cinematch
 
-import androidx.media3.ui.BuildConfig
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import retrofit2.HttpException
 import java.io.IOException
 
 class AIRepository(private val apiService: OpenRouterService) {
@@ -17,7 +18,7 @@ class AIRepository(private val apiService: OpenRouterService) {
             messages = messages
         )
         val response = apiService.createChat(
-            auth = "Bearer ${com.example.cinematch.BuildConfig.openrouterai_api_key}",
+            auth = "Bearer ${BuildConfig.openrouterai_api_key}",
             request = request
         )
         response.choices.firstOrNull()?.message
@@ -28,11 +29,13 @@ class AIRepository(private val apiService: OpenRouterService) {
     private suspend fun <T> safeApiCall(block: suspend () -> T): T = withContext(Dispatchers.IO) {
         try {
             block()
+        } catch (e: IOException) {
+            throw NetworkException("No Internet Connection", e)
+        } catch (e: HttpException) {
+            throw UnknownException("HTTP ${e.code()}: ${e.response()?.errorBody()?.string()}", e)
         } catch (e: Exception) {
-            throw when (e) {
-                is IOException -> NetworkException("No Internet Connection", e)
-                else -> UnknownException("Unknown Error", e)
-            }
+            throw UnknownException("Unknown Error: ${e.localizedMessage}", e)
         }
     }
+
 }

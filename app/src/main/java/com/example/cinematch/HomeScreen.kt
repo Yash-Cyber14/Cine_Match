@@ -1,5 +1,6 @@
 package com.example.cinematch
 
+import android.content.Context
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -57,6 +58,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -82,6 +84,8 @@ fun HomeScreen(
     val topRatedState by viewModel.topRatedMovies.collectAsState()
     val recommendedState by viewModel.recommendations.collectAsState()
     val similarState by viewModel.similarMovies.collectAsState()
+
+    val context = LocalContext.current
 
     // 🔹 Load all data once when screen opens
     LaunchedEffect(Unit) {
@@ -233,7 +237,8 @@ fun HomeScreen(
                         movie.title,
                         movie.movie,
                         navController,
-                        authviewModel
+                        authviewModel ,
+                        context
                     )
                 }
 
@@ -617,7 +622,7 @@ fun bottombar(navcontroller: NavHostController , viewModel1: MainViewModel) {
 }
 
 @Composable
-fun favouritesandfriendsmovies(title: String, movie: List<Movie> , navController: NavHostController , viewModel : AuthenticationViewModel) {
+fun favouritesandfriendsmovies(title: String, movie: List<Movie> , navController: NavHostController , viewModel : AuthenticationViewModel , context: Context) {
 
     LaunchedEffect(Unit) {
         viewModel.loadFavourites()
@@ -666,7 +671,7 @@ fun favouritesandfriendsmovies(title: String, movie: List<Movie> , navController
                 ) {
                     items(movie) { movie ->
                         FavMovieCard(
-                            movie, navController = navController , viewModel
+                            movie, navController = navController , viewModel , context = context
                         )
                     }
                 }
@@ -680,7 +685,8 @@ fun favouritesandfriendsmovies(title: String, movie: List<Movie> , navController
 fun FavMovieCard(
     movie: Movie,
     navController: NavHostController,
-    authViewModel: AuthenticationViewModel
+    authViewModel: AuthenticationViewModel ,
+    context : Context
 ) {
     val scope = rememberCoroutineScope()
     val scale = remember { Animatable(1f) }
@@ -737,7 +743,7 @@ fun FavMovieCard(
         IconButton(
             onClick = {
                 scope.launch {
-                    authViewModel.toggleFavorite(movie)
+                    authViewModel.toggleFavouriteMovie(movie ,context)
                 }
             },
             modifier = Modifier

@@ -78,14 +78,14 @@ fun Navigation() {
         {
             ProfileScreen(navcontroller , AuthviewModel)
         }
-        composable("${Screens.ActionCardforfriends.route}/{email}",
-            arguments = listOf(
-                navArgument("email") { type = NavType.StringType }
-            )
-            ){it ->
-            val email = it.arguments?.getString("email") ?:""
-            ActionCardforFriends(AuthviewModel , email,navcontroller )
+        composable(
+            "${Screens.ActionCardforfriends.route}/{friendUid}",
+            arguments = listOf(navArgument("friendUid") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val friendUid = backStackEntry.arguments?.getString("friendUid") ?: ""
+            ActionCardforFriends(viewModel = AuthviewModel, navController = navcontroller, friendUid = friendUid)
         }
+
 
         composable(Screens.LoggingScreen.route){
             loggingScreen(AuthviewModel , navcontroller)

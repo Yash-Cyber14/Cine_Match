@@ -46,15 +46,14 @@ import kotlinx.coroutines.launch
 @Composable
 fun ActionCardforFriends(
     viewModel: AuthenticationViewModel,
-    email: String,
-    navController: NavController
+    navController: NavController,
+    friendUid: String
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // Trigger finding user
-    LaunchedEffect(email) {
-        viewModel.findinguser(email, context)
+    LaunchedEffect(friendUid) {
+        viewModel.findinguserByUid(friendUid, context)
     }
 
     val frienduser = viewModel.foundfriend.value
@@ -75,20 +74,14 @@ fun ActionCardforFriends(
             if (frienduser == null) {
                 CircularProgressIndicator(color = Color.White)
             } else {
-                // Card fade-in animation
-                AnimatedVisibility(
-                    visible = true,
-                    enter = fadeIn(animationSpec = tween(600))
-                ) {
+                AnimatedVisibility(visible = true, enter = fadeIn(animationSpec = tween(600))) {
                     Card(
                         modifier = Modifier
                             .padding(24.dp)
                             .fillMaxWidth(0.9f),
                         shape = RoundedCornerShape(16.dp),
                         elevation = CardDefaults.cardElevation(8.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
-                        )
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
                         Column(
                             modifier = Modifier
@@ -96,25 +89,19 @@ fun ActionCardforFriends(
                                 .fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            // Optional profile image
                             Image(
                                 painter = painterResource(R.drawable.profile_placeholder),
                                 contentDescription = "Profile",
-                                modifier = Modifier
-                                    .size(90.dp)
-                                    .clip(CircleShape)
+                                modifier = Modifier.size(90.dp).clip(CircleShape)
                             )
 
                             Spacer(Modifier.height(12.dp))
 
                             frienduser.username?.let {
-                                Text(
-                                    text = it,
-                                    style = MaterialTheme.typography.titleLarge.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                )
+                                Text(it, style = MaterialTheme.typography.titleLarge.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                ))
                             }
 
                             Spacer(Modifier.height(8.dp))
@@ -131,23 +118,19 @@ fun ActionCardforFriends(
                                 OutlinedButton(
                                     onClick = { navController.popBackStack() },
                                     shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Text("Cancel")
-                                }
+                                ) { Text("Cancel") }
 
                                 Button(
                                     onClick = {
                                         scope.launch {
-                                            viewModel.Makingfriend(email, context)
+                                            viewModel.Makingfriend(friendUid, context)
                                             viewModel.loadCommonMoviesWithFriends()
                                             delay(100)
                                             navController.popBackStack()
                                         }
                                     },
                                     shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Text("Confirm")
-                                }
+                                ) { Text("Confirm") }
                             }
                         }
                     }
@@ -156,3 +139,4 @@ fun ActionCardforFriends(
         }
     }
 }
+

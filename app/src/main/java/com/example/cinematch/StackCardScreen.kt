@@ -1,5 +1,6 @@
 package com.example.cinematch
 
+import android.content.Context
 import android.net.Uri
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -52,6 +53,7 @@ fun StackCardScreen(
     viewModel1: MainViewModel
 ) {
     var allMovies = moviestyperesponse?.results ?: emptyList()
+    val context = LocalContext.current
 
     val startIndex = allMovies.indexOfFirst { it.id == id }
     if (startIndex in 0 until allMovies.size) {
@@ -108,7 +110,8 @@ fun StackCardScreen(
                         movie = movie,
                         viewModel1 = viewModel1,
                         viewModel = viewModel,
-                        navController = navController
+                        navController = navController ,
+                        context = context
                     )
                 }
             }
@@ -165,7 +168,7 @@ fun StackCardScreen(
 
 
 @Composable
-fun MovieCard(movie: Movie , viewModel: AuthenticationViewModel , viewModel1: MainViewModel , navController: NavHostController ) {
+fun MovieCard(movie: Movie , viewModel: AuthenticationViewModel , viewModel1: MainViewModel , navController: NavHostController , context : Context) {
 
     val scope = rememberCoroutineScope()
 
@@ -233,8 +236,9 @@ fun MovieCard(movie: Movie , viewModel: AuthenticationViewModel , viewModel1: Ma
                 IconButton(
                     onClick = {
                         liked = !liked
-                        viewModel.toggleFavorite(movie)
+
                         scope.launch {
+                            viewModel.toggleFavouriteMovie(movie , context)
                             viewModel.loadFavourites()
                         }
                     },

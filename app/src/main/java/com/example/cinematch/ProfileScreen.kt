@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddLink
 import androidx.compose.material.icons.filled.Adjust
 import androidx.compose.material.icons.filled.ArrowBack
@@ -61,7 +60,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 
@@ -70,6 +69,12 @@ fun ProfileScreen(navController: NavController, viewModel: AuthenticationViewMod
     val context = LocalContext.current
     var email by rememberSaveable { mutableStateOf("") }
     var actionCardState by rememberSaveable { mutableStateOf(false) }
+    val friends by viewModel.friends
+
+    LaunchedEffect(Unit) {
+        delay(100)
+        viewModel.loadFriends()
+    }
 
     Box(Modifier.fillMaxSize()) {
         // 🌄 Background image
@@ -105,7 +110,7 @@ fun ProfileScreen(navController: NavController, viewModel: AuthenticationViewMod
             Box(Modifier.fillMaxSize()) {
                 // 🔙 Back button
                 IconButton(
-                    onClick = { navController.popBackStack() },
+                    onClick = { navController.navigate(Screens.Home.route) },
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(16.dp)
@@ -150,7 +155,7 @@ fun ProfileScreen(navController: NavController, viewModel: AuthenticationViewMod
                     Spacer(Modifier.height(30.dp))
 
                     // 🧩 Friend Zone Section
-                    friendZone(viewModel, navController)
+                    friendZone(viewModel, navController , friends)
 
                     Spacer(Modifier.height(40.dp))
 
@@ -158,7 +163,7 @@ fun ProfileScreen(navController: NavController, viewModel: AuthenticationViewMod
                     Button(
                         onClick = {
                             viewModel.signOut()
-                            navController.navigate(Screens.SignUp.route) {
+                            navController.navigate(Screens.GettingStarted.route) {
                                 popUpTo(0)
                             }
                         },
@@ -269,9 +274,12 @@ fun GeneralInfo(viewModel: AuthenticationViewModel) {
 }
 
 @Composable
-fun friendZone(viewModel: AuthenticationViewModel, navController: NavController) {
+fun friendZone(
+    viewModel: AuthenticationViewModel,
+    navController: NavController,
+    friends: List<String>
+) {
     val context = LocalContext.current
-    val friends by viewModel.friends
     var friendEmail by rememberSaveable { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
@@ -283,11 +291,7 @@ fun friendZone(viewModel: AuthenticationViewModel, navController: NavController)
         Spacer(Modifier.height(15.dp))
         Text(
             "Friends",
-            style = TextStyle(
-                fontStyle = FontStyle.Normal,
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp
-            ),
+            style = TextStyle(fontStyle = FontStyle.Normal, fontWeight = FontWeight.Bold, fontSize = 20.sp),
             color = Color.Black
         )
 
@@ -297,8 +301,20 @@ fun friendZone(viewModel: AuthenticationViewModel, navController: NavController)
             onValueChange = { friendEmail = it },
             shape = RoundedCornerShape(10.dp),
             label = { Text("Enter Email") },
-            leadingIcon = {
-                Icon(Icons.Default.Email, contentDescription = null, tint = Color.Black)
+            leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = Color.Black) },
+            trailingIcon = {
+                IconButton(onClick = {
+                    scope.launch {
+                        val uid = viewModel.findinguserByEmail(friendEmail, context)
+                        if (uid != null) {
+                            navController.navigate("${Screens.ActionCardforfriends.route}/$uid")
+                        } else {
+                            Toast.makeText(context, "Email not registered", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }) {
+                    Icon(Icons.Default.ArrowForward, contentDescription = "Add Friend")
+                }
             },
             colors = TextFieldDefaults.colors(
                 focusedTextColor = Color.Black,
@@ -308,21 +324,7 @@ fun friendZone(viewModel: AuthenticationViewModel, navController: NavController)
                 disabledContainerColor = Color.White,
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent
-            ),
-            trailingIcon = {
-                IconButton(onClick = {
-                    scope.launch {
-                        val email = friendEmail.trim()
-                        if (viewModel.isEmailRegistered(email)) {
-                            navController.navigate("${Screens.ActionCardforfriends.route}/$email")
-                        } else {
-                            Toast.makeText(context, "Email not registered", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }) {
-                    Icon(Icons.Default.ArrowForward, contentDescription = "Add Friend")
-                }
-            }
+            )
         )
 
         Spacer(Modifier.height(10.dp))
@@ -338,6 +340,7 @@ fun friendZone(viewModel: AuthenticationViewModel, navController: NavController)
         }
     }
 }
+
 
 
 @Composable
